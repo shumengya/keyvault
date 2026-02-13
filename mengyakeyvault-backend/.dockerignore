@@ -1,0 +1,14 @@
+data/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+.git
+.gitignore
+README.md
+docker-compose.yml
+Dockerfile
