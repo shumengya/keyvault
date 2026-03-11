@@ -6,9 +6,9 @@ import PasswordForm from './PasswordForm';
 import SearchBar from './SearchBar';
 
 // API 地址配置：优先使用环境变量，否则根据构建模式自动选择
-const API_BASE = process.env.REACT_APP_API_BASE || 
-  (process.env.NODE_ENV === 'production' 
-    ? 'https://keyvault.api.shumengya.top/api' 
+const API_BASE = process.env.REACT_APP_API_BASE ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://keyvault.api.shumengya.top/api'
     : 'http://localhost:8080/api');
 
 const PasswordManager = () => {
@@ -19,6 +19,10 @@ const PasswordManager = () => {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // PWA 安装提示
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
   useEffect(() => {
     loadEntries();
   }, []);
@@ -26,6 +30,27 @@ const PasswordManager = () => {
   useEffect(() => {
     filterEntries();
   }, [searchKeyword, entries]);
+
+  // 监听 PWA 安装事件
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBanner(false);
+      setInstallPrompt(null);
+    }
+  };
 
   const loadEntries = async () => {
     try {
@@ -47,7 +72,6 @@ const PasswordManager = () => {
 
     const keyword = searchKeyword.toLowerCase();
     const filtered = entries.filter(entry =>
-      entry.accountType?.toLowerCase().includes(keyword) ||
       entry.account?.toLowerCase().includes(keyword) ||
       entry.username?.toLowerCase().includes(keyword) ||
       entry.email?.toLowerCase().includes(keyword) ||
@@ -114,6 +138,15 @@ const PasswordManager = () => {
 
   return (
     <div className="password-manager">
+      {/* PWA 安装横幅 */}
+      {showInstallBanner && (
+        <div className="pwa-install-banner">
+          <span className="pwa-banner-icon">🌱</span>
+          <span className="pwa-banner-text">将萌芽密码添加到桌面，随时快速访问</span>
+          <button className="pwa-install-btn" onClick={handleInstall}>添加到桌面</button>
+          <button className="pwa-dismiss-btn" onClick={() => setShowInstallBanner(false)}>✕</button>
+        </div>
+      )}
       <nav className="manager-nav">
         <div className="nav-content">
           <img 

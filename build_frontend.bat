@@ -7,4 +7,3 @@ if not exist node_modules (
     call npm install
 )
 npm run build
-echo 构建完成！输出目录：mengyakeyvault-frontend\build

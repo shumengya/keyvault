@@ -3,7 +3,6 @@ import './PasswordForm.css';
 
 const PasswordForm = ({ entry, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
-    accountType: '网站',
     account: '',
     password: '',
     username: '',
@@ -28,7 +27,6 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
   useEffect(() => {
     if (entry) {
       setFormData({
-        accountType: entry.accountType || '网站',
         account: entry.account || '',
         password: entry.password || '',
         username: entry.username || '',
@@ -134,19 +132,6 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
                 placeholder="例如：MiniMax、GitHub"
                 required
               />
-            </div>
-            <div className="form-group">
-              <label>账号类型 *</label>
-              <select
-                name="accountType"
-                value={formData.accountType}
-                onChange={handleChange}
-                className="form-select"
-                required
-              >
-                <option value="网站">网站</option>
-                <option value="软件">软件</option>
-              </select>
             </div>
           </div>
 

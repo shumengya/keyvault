@@ -45,16 +45,41 @@ const EmptyIcon = () => (
   </svg>
 );
 
+// 判断是否为手机端
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+};
+
 const PasswordList = ({ entries, onEdit, onDelete }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [logoCache, setLogoCache] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const isMobile = useIsMobile();
+
+  // 每页条数：手机端 3行×2列=6，电脑端 2行×5列=10
+  const pageSize = isMobile ? 6 : 10;
+  const totalPages = Math.ceil(entries.length / pageSize);
+
+  // entries 变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [entries]);
+
+  const pagedEntries = entries.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // 获取网站favicon
   const getWebsiteFavicon = (url) => {
     if (!url) return null;
     try {
       const urlObj = new URL(url);
-      return `${urlObj.protocol}//${urlObj.host}/favicon.ico`;
+      const domain = urlObj.host;
+      return `https://cf-favicon.pages.dev/api/favicon?url=${domain}`;
     } catch {
       return null;
     }
@@ -67,14 +92,14 @@ const PasswordList = ({ entries, onEdit, onDelete }) => {
       return entry.logo;
     }
     
-    // 如果是网站类型，尝试获取favicon
-    if (entry.accountType === '网站' && entry.website) {
+    // 如果有网站地址，尝试获取favicon
+    if (entry.website) {
       const faviconUrl = getWebsiteFavicon(entry.website);
       if (faviconUrl) {
         return faviconUrl;
       }
     }
-    
+
     // 默认使用本地logo
     return `${process.env.PUBLIC_URL}/logo.png`;
   };
@@ -124,8 +149,9 @@ const PasswordList = ({ entries, onEdit, onDelete }) => {
   }
 
   return (
+    <>
     <div className="password-list">
-      {entries.map((entry) => {
+      {pagedEntries.map((entry) => {
         const logoUrl = getLogoUrl(entry);
         return (
         <div key={entry.id} className="password-card">
@@ -145,7 +171,6 @@ const PasswordList = ({ entries, onEdit, onDelete }) => {
               <div className="card-title-row">
                 <div className="card-title">
                   <span className="card-type">{entry.officialName || entry.software || '未命名'}</span>
-                  <span className="card-account-type">{entry.accountType || '未分类'}</span>
                 </div>
                 <div className="card-actions">
                   <button
@@ -223,13 +248,65 @@ const PasswordList = ({ entries, onEdit, onDelete }) => {
           </div>
           {entry.tags && (
             <div className="card-tags">
-              {entry.tags}
+              {entry.tags.split(',').map((tag, idx) => (
+                <span key={idx} className="card-tag">{tag.trim()}</span>
+              ))}
             </div>
           )}
         </div>
         );
       })}
     </div>
+    {totalPages > 1 && (
+      <div className="pagination">
+        <button
+          className="page-btn"
+          onClick={() => setCurrentPage(1)}
+          disabled={currentPage === 1}
+          title="第一页"
+        >«</button>
+        <button
+          className="page-btn"
+          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          title="上一页"
+        >‹</button>
+
+        {Array.from({ length: totalPages }, (_, i) => i + 1)
+          .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+          .reduce((acc, p, idx, arr) => {
+            if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+            acc.push(p);
+            return acc;
+          }, [])
+          .map((p, idx) =>
+            p === '...'
+              ? <span key={`ellipsis-${idx}`} className="page-ellipsis">…</span>
+              : <button
+                  key={p}
+                  className={`page-btn${currentPage === p ? ' active' : ''}`}
+                  onClick={() => setCurrentPage(p)}
+                >{p}</button>
+          )
+        }
+
+        <button
+          className="page-btn"
+          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          title="下一页"
+        >›</button>
+        <button
+          className="page-btn"
+          onClick={() => setCurrentPage(totalPages)}
+          disabled={currentPage === totalPages}
+          title="最后一页"
+        >»</button>
+
+        <span className="page-info">{currentPage} / {totalPages} 页 · 共 {entries.length} 条</span>
+      </div>
+    )}
+    </>
   );
 };
 

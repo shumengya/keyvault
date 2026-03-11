@@ -29,13 +29,12 @@ func init() {
 
 type PasswordEntry struct {
 	ID           int    `json:"id"`
-	AccountType  string `json:"accountType"`  // 账号类型（网站/软件）
 	Account      string `json:"account"`      // 账号
 	Password     string `json:"password"`     // 密码
 	Username     string `json:"username"`     // 用户名
 	Phone        string `json:"phone"`        // 手机号
 	Email        string `json:"email"`        // 邮箱
-	Website      string `json:"website"`     // 网站地址
+	Website      string `json:"website"`      // 网站地址
 	OfficialName string `json:"officialName"` // 官方名称（必填）
 	Tags         string `json:"tags"`         // 标签
 	Logo         string `json:"logo"`         // Logo图标URL
@@ -122,8 +121,7 @@ func getEntries(c *gin.Context) {
 	keyword = strings.ToLower(keyword)
 	var results []PasswordEntry
 	for _, entry := range store.Entries {
-		if strings.Contains(strings.ToLower(entry.AccountType), keyword) ||
-			strings.Contains(strings.ToLower(entry.Account), keyword) ||
+		if strings.Contains(strings.ToLower(entry.Account), keyword) ||
 			strings.Contains(strings.ToLower(entry.Username), keyword) ||
 			strings.Contains(strings.ToLower(entry.Email), keyword) ||
 			strings.Contains(strings.ToLower(entry.Website), keyword) ||
@@ -146,10 +144,6 @@ func addEntry(c *gin.Context) {
 	// 验证必填字段
 	if entry.OfficialName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "官方名称不能为空"})
-		return
-	}
-	if entry.AccountType != "网站" && entry.AccountType != "软件" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "账号类型必须是'网站'或'软件'"})
 		return
 	}
 
@@ -183,10 +177,6 @@ func updateEntry(c *gin.Context) {
 	// 验证必填字段
 	if entry.OfficialName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "官方名称不能为空"})
-		return
-	}
-	if entry.AccountType != "网站" && entry.AccountType != "软件" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "账号类型必须是'网站'或'软件'"})
 		return
 	}
 
