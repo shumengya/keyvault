@@ -45,31 +45,46 @@ const EmptyIcon = () => (
   </svg>
 );
 
-// 判断是否为手机端
-const useIsMobile = () => {
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+// 与 PasswordList.css 网格列数保持一致，便于按「行数×列数」计算每页条数
+const getGridColumnCount = (width) => {
+  if (width <= 768) return 2;
+  if (width <= 1199) return 3;
+  if (width <= 1599) return 4;
+  return 5;
+};
+
+const useGridColumnCount = () => {
+  const [columns, setColumns] = useState(() => getGridColumnCount(window.innerWidth));
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth <= 768);
+    const handler = () => setColumns(getGridColumnCount(window.innerWidth));
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
-  return isMobile;
+  return columns;
 };
 
 const PasswordList = ({ entries, onEdit, onDelete }) => {
   const [copiedId, setCopiedId] = useState(null);
   const [logoCache, setLogoCache] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
-  const isMobile = useIsMobile();
+  const gridColumns = useGridColumnCount();
 
-  // 每页条数：手机端 3行×2列=6，电脑端 2行×5列=10
-  const pageSize = isMobile ? 6 : 10;
+  const ROWS_PER_PAGE = 4;
+  const pageSize = ROWS_PER_PAGE * gridColumns;
   const totalPages = Math.ceil(entries.length / pageSize);
 
   // entries 变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
   }, [entries]);
+
+  // 列数变化（窗口缩放）时避免当前页超出总页数
+  useEffect(() => {
+    setCurrentPage((p) => {
+      const tp = Math.max(1, Math.ceil(entries.length / pageSize) || 1);
+      return Math.min(p, tp);
+    });
+  }, [pageSize, entries.length]);
 
   const pagedEntries = entries.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
@@ -79,7 +94,7 @@ const PasswordList = ({ entries, onEdit, onDelete }) => {
     try {
       const urlObj = new URL(url);
       const domain = urlObj.host;
-      return `https://cf-favicon.pages.dev/api/favicon?url=${domain}`;
+      return `https://favicon.smyhub.com/api/favicon?url=${encodeURIComponent(domain)}`;
     } catch {
       return null;
     }

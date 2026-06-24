@@ -11,7 +11,6 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
     website: '',
     officialName: '',
     tags: '',
-    logo: '',
   });
 
   const [passwordOptions, setPasswordOptions] = useState({
@@ -35,7 +34,6 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
         website: entry.website || '',
         officialName: entry.officialName || entry.software || '',
         tags: entry.tags || '',
-        logo: entry.logo || '',
       });
       setShowPasswordGenerator(false);
     } else {
@@ -54,7 +52,10 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({
+      ...formData,
+      logo: entry?.logo ?? '',
+    });
   };
 
   const generatePassword = () => {
@@ -133,6 +134,16 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
                 required
               />
             </div>
+            <div className="form-group">
+              <label>标签</label>
+              <input
+                type="text"
+                name="tags"
+                value={formData.tags}
+                onChange={handleChange}
+                placeholder="标签（用空格或逗号分隔）"
+              />
+            </div>
           </div>
 
           <div className="form-row">
@@ -143,7 +154,7 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
                 name="account"
                 value={formData.account}
                 onChange={handleChange}
-                placeholder="账号"
+                placeholder="登录账号"
               />
             </div>
             <div className="form-group">
@@ -270,7 +281,7 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
                 name="username"
                 value={formData.username}
                 onChange={handleChange}
-                placeholder="用户名"
+                placeholder="显示名 / 昵称"
               />
             </div>
             <div className="form-group">
@@ -304,29 +315,6 @@ const PasswordForm = ({ entry, onSave, onCancel }) => {
                 value={formData.website}
                 onChange={handleChange}
                 placeholder="https://example.com"
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>标签</label>
-              <input
-                type="text"
-                name="tags"
-                value={formData.tags}
-                onChange={handleChange}
-                placeholder="标签（用空格分隔）"
-              />
-            </div>
-            <div className="form-group">
-              <label>Logo图标URL（可选）</label>
-              <input
-                type="url"
-                name="logo"
-                value={formData.logo}
-                onChange={handleChange}
-                placeholder="https://example.com/logo.png（留空则自动获取）"
               />
             </div>
           </div>

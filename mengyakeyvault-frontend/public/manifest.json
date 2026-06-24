@@ -1,7 +1,7 @@
 {
   "name": "萌芽密码管理器",
-  "short_name": "萌芽密码",
-  "description": "安全、便捷的个人密码管理工具",
+  "short_name": "萌芽密码管理器",
+  "description": "萌芽密码管理器",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
