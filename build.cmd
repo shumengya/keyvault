@@ -3,8 +3,8 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-rem 用法: build.cmd          编译 Windows 可执行文件 -> bin\mengyakeyvault.exe
-rem       build.cmd linux    交叉编译 Linux amd64 -> bin\mengyakeyvault-linux-amd64
+rem Usage: build.cmd          build Windows exe -> bin\mengyakeyvault.exe
+rem        build.cmd linux    cross-compile Linux amd64 -> bin\mengyakeyvault-linux-amd64
 
 set "NAME=mengyakeyvault.exe"
 if /i "%~1"=="linux" (
@@ -26,7 +26,7 @@ cd ..
 
 echo [2/2] 编译后端...
 if not exist bin mkdir bin
-rem 使用纯 Go 的 SQLite 驱动，不需要 CGO，所以能直接交叉编译
+rem pure-Go SQLite driver, no CGO needed, so cross-compiling just works
 set "CGO_ENABLED=0"
 cd backend
 go build -trimpath -ldflags "-s -w" -o "..\bin\%NAME%" .
