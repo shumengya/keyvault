@@ -8,31 +8,34 @@ import "net/http"
 import "os"
 import "path/filepath"
 import "strconv"
+import "strings"
+import "time"
 
-import "github.com/gin-contrib/cors"
 import "github.com/gin-gonic/gin"
 
-const DefaultPassword string = "shumengya520"
+// 单个请求体上限。条目字段都是短文本,1MiB 绰绰有余,主要是防未登录接口被灌大请求。
+const maxBodyBytes int64 = 1 << 20
 
-// Server 持有各接口共用的存储层。
+// Server 持有各接口共用的存储层和登录限流器。
 type Server struct {
-	store *Store
+	store          *Store
+	limiter        *attemptLimiter
+	clock          func() time.Time
+	trustedProxies []string
 }
 
-func (server *Server) verifyPassword(ginContext *gin.Context) {
-	var request struct {
-		Password string `json:"password"`
+func newServer(store *Store, trustedProxies []string) *Server {
+	return &Server{
+		store:          store,
+		limiter:        newAttemptLimiter(),
+		clock:          time.Now,
+		trustedProxies: trustedProxies,
 	}
-	var err error = ginContext.ShouldBindJSON(&request)
-	if err != nil {
-		ginContext.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求"})
-		return
-	}
-	if request.Password != DefaultPassword {
-		ginContext.JSON(http.StatusUnauthorized, gin.H{"error": "密码错误"})
-		return
-	}
-	ginContext.JSON(http.StatusOK, gin.H{"success": true, "message": "密码验证成功"})
+}
+
+func limitBody(ginContext *gin.Context) {
+	ginContext.Request.Body = http.MaxBytesReader(ginContext.Writer, ginContext.Request.Body, maxBodyBytes)
+	ginContext.Next()
 }
 
 func (server *Server) getEntries(ginContext *gin.Context) {
@@ -112,22 +115,46 @@ func (server *Server) deleteEntry(ginContext *gin.Context) {
 	ginContext.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (server *Server) newRouter() *gin.Engine {
+func (server *Server) newRouter() (*gin.Engine, error) {
 	var router *gin.Engine = gin.Default()
 
-	var corsConfig cors.Config = cors.DefaultConfig()
-	corsConfig.AllowAllOrigins = true
-	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
-	router.Use(cors.New(corsConfig))
+	// 不配可信代理时传 nil:ClientIP 只认直连地址,不会被伪造的 X-Forwarded-For 骗过,限流才靠谱
+	var err error = router.SetTrustedProxies(server.trustedProxies)
+	if err != nil {
+		return nil, fmt.Errorf("设置可信代理: %w", err)
+	}
 
+	// 前端和接口同源,不需要 CORS;Cookie 会话也不该对其他源开放
 	var api *gin.RouterGroup = router.Group("/api")
-	api.POST("/verify", server.verifyPassword)
-	api.GET("/entries", server.getEntries)
-	api.POST("/entries", server.addEntry)
-	api.PUT("/entries", server.updateEntry)
-	api.DELETE("/entries/:id", server.deleteEntry)
-	return router
+	api.Use(limitBody)
+	api.POST("/login", server.login)
+	api.POST("/logout", server.logout)
+	api.GET("/session", server.sessionStatus)
+
+	var protected *gin.RouterGroup = api.Group("")
+	protected.Use(server.requireSession)
+	protected.GET("/entries", server.getEntries)
+	protected.POST("/entries", server.addEntry)
+	protected.PUT("/entries", server.updateEntry)
+	protected.DELETE("/entries/:id", server.deleteEntry)
+	protected.GET("/settings", server.getSettings)
+	protected.PUT("/settings/session", server.updateSessionTTL)
+	protected.PUT("/settings/passwords", server.changePasswords)
+	return router, nil
+}
+
+// splitList 把逗号分隔的环境变量拆成列表,忽略空项。
+func splitList(text string) []string {
+	var items []string = nil
+	var parts []string = strings.Split(text, ",")
+	var index int = 0
+	for index = 0; index < len(parts); index++ {
+		var item string = strings.TrimSpace(parts[index])
+		if item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func run() error {
@@ -146,11 +173,21 @@ func run() error {
 	if imported > 0 {
 		log.Printf("已从旧版 data.json 导入 %d 条记录(原文件保持不变)", imported)
 	}
+	err = ensurePasswords(store)
+	if err != nil {
+		return errors.Join(fmt.Errorf("初始化访问密码: %w", err), store.Close())
+	}
 
-	var server *Server = &Server{store: store}
+	// 放在反向代理(nginx 等)后面时,用 MENGYA_TRUSTED_PROXIES 填代理的 IP,多个用逗号分隔
+	var server *Server = newServer(store, splitList(os.Getenv("MENGYA_TRUSTED_PROXIES")))
+	var router *gin.Engine
+	router, err = server.newRouter()
+	if err != nil {
+		return errors.Join(err, store.Close())
+	}
 	var address string = cmp.Or(os.Getenv("MENGYA_ADDR"), ":8080")
 	log.Printf("服务器启动在 %s", address)
-	var runErr error = server.newRouter().Run(address)
+	var runErr error = router.Run(address)
 	var closeErr error = store.Close()
 	if runErr != nil {
 		return errors.Join(fmt.Errorf("运行服务: %w", runErr), closeErr)

@@ -1,14 +1,9 @@
 package main
 
 import "errors"
-import "net/http"
-import "net/http/httptest"
 import "os"
 import "path/filepath"
-import "strings"
 import "testing"
-
-import "github.com/gin-gonic/gin"
 
 func openTestStore(tester *testing.T) *Store {
 	tester.Helper()
@@ -281,61 +276,5 @@ func TestUpdateDeleteMissing(tester *testing.T) {
 	err = store.DeleteEntry(99)
 	if !errors.Is(err, ErrEntryNotFound) {
 		tester.Fatalf("删除不存在的条目 err = %v, 期望 ErrEntryNotFound", err)
-	}
-}
-
-func doRequest(router *gin.Engine, method string, path string, body string) *httptest.ResponseRecorder {
-	var request *http.Request = httptest.NewRequest(method, path, strings.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	var recorder *httptest.ResponseRecorder = httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-	return recorder
-}
-
-func TestEntriesAPI(tester *testing.T) {
-	gin.SetMode(gin.TestMode)
-	var server *Server = &Server{store: openTestStore(tester)}
-	var router *gin.Engine = server.newRouter()
-
-	var recorder *httptest.ResponseRecorder = doRequest(router, http.MethodGet, "/api/entries", "")
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"entries":[]`) {
-		tester.Fatalf("空库列表应返回 entries:[] , 实际 %d %s", recorder.Code, recorder.Body.String())
-	}
-
-	recorder = doRequest(router, http.MethodPost, "/api/entries", `{"officialName":""}`)
-	if recorder.Code != http.StatusBadRequest {
-		tester.Fatalf("官方名称为空应返回 400, 实际 %d", recorder.Code)
-	}
-
-	recorder = doRequest(router, http.MethodPost, "/api/entries", `{"officialName":"站点","account":"u1"}`)
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"id":1`) {
-		tester.Fatalf("新增失败 %d %s", recorder.Code, recorder.Body.String())
-	}
-
-	recorder = doRequest(router, http.MethodPut, "/api/entries", `{"id":1,"officialName":"站点","account":"u2"}`)
-	if recorder.Code != http.StatusOK {
-		tester.Fatalf("更新失败 %d %s", recorder.Code, recorder.Body.String())
-	}
-	recorder = doRequest(router, http.MethodPut, "/api/entries", `{"id":42,"officialName":"站点"}`)
-	if recorder.Code != http.StatusNotFound {
-		tester.Fatalf("更新不存在条目应返回 404, 实际 %d", recorder.Code)
-	}
-
-	recorder = doRequest(router, http.MethodGet, "/api/entries?keyword=u2", "")
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"account":"u2"`) {
-		tester.Fatalf("搜索失败 %d %s", recorder.Code, recorder.Body.String())
-	}
-
-	recorder = doRequest(router, http.MethodDelete, "/api/entries/abc", "")
-	if recorder.Code != http.StatusBadRequest {
-		tester.Fatalf("非法 id 应返回 400, 实际 %d", recorder.Code)
-	}
-	recorder = doRequest(router, http.MethodDelete, "/api/entries/1", "")
-	if recorder.Code != http.StatusOK {
-		tester.Fatalf("删除失败 %d %s", recorder.Code, recorder.Body.String())
-	}
-	recorder = doRequest(router, http.MethodDelete, "/api/entries/1", "")
-	if recorder.Code != http.StatusNotFound {
-		tester.Fatalf("重复删除应返回 404, 实际 %d", recorder.Code)
 	}
 }

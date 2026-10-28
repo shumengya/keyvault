@@ -47,7 +47,13 @@ CREATE TABLE IF NOT EXISTS settings (
 	key   TEXT PRIMARY KEY,
 	value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS sessions (
+	tokenHash TEXT PRIMARY KEY,
+	expiresAt INTEGER NOT NULL
+);
 `
+
+const upsertSettingSQL string = "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
 
 const selectEntries string = "SELECT id, account, password, username, phone, email, website, officialName, tags, logo FROM entries"
 
@@ -326,10 +332,7 @@ func (store *Store) ImportLegacyJSON(jsonPath string) (int, error) {
 			return 0, rollbackWith(transaction, fmt.Errorf("导入条目 id=%d: %w", entry.ID, err))
 		}
 	}
-	_, err = transaction.Exec(
-		"INSERT INTO settings (key, value) VALUES (?, '1') ON CONFLICT(key) DO UPDATE SET value = '1'",
-		settingLegacyImported,
-	)
+	_, err = transaction.Exec(upsertSettingSQL, settingLegacyImported, "1")
 	if err != nil {
 		return 0, rollbackWith(transaction, fmt.Errorf("写入导入标记: %w", err))
 	}
@@ -341,12 +344,5 @@ func (store *Store) ImportLegacyJSON(jsonPath string) (int, error) {
 }
 
 func (store *Store) markLegacyImported() error {
-	var _, err = store.database.Exec(
-		"INSERT INTO settings (key, value) VALUES (?, '1') ON CONFLICT(key) DO UPDATE SET value = '1'",
-		settingLegacyImported,
-	)
-	if err != nil {
-		return fmt.Errorf("写入导入标记: %w", err)
-	}
-	return nil
+	return store.setSetting(settingLegacyImported, "1")
 }

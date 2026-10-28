@@ -4,14 +4,16 @@ import './PasswordManager.css';
 import PasswordList from './PasswordList';
 import PasswordForm from './PasswordForm';
 import SearchBar from './SearchBar';
+import SettingsPanel from './SettingsPanel';
 import API_BASE from '../config/api';
 
-const PasswordManager = () => {
+const PasswordManager = ({ onLogout }) => {
   const [entries, setEntries] = useState([]);
   const [filteredEntries, setFilteredEntries] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [editingEntry, setEditingEntry] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -116,6 +118,13 @@ const PasswordManager = () => {
             className="nav-logo"
           />
           <h1 className="nav-title">萌芽密码管理器</h1>
+          <button
+            type="button"
+            className="nav-settings-button"
+            onClick={() => setShowSettings(true)}
+          >
+            ⚙ 设置
+          </button>
         </div>
       </nav>
       <div className="manager-header">
@@ -141,6 +150,10 @@ const PasswordManager = () => {
           onSave={handleSave}
           onCancel={handleCancel}
         />
+      )}
+
+      {showSettings && (
+        <SettingsPanel onClose={() => setShowSettings(false)} onLogout={onLogout} />
       )}
     </div>
   );
