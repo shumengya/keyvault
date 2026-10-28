@@ -190,6 +190,13 @@ func run() error {
 
 	// 数据目录默认是运行目录下的 data;旧版 data.json 放在同一目录,首次启动会自动导入
 	var dataDir string = cmp.Or(os.Getenv("MENGYA_DATA_DIR"), "data")
+	// 相对路径是相对"运行时所在目录"的,换个目录启动就会悄悄新建一个空库,所以把实际用的位置打出来
+	var dataDirDisplay string = dataDir
+	var absoluteDir, absErr = filepath.Abs(dataDir)
+	if absErr == nil {
+		dataDirDisplay = absoluteDir
+	}
+	log.Printf("数据目录: %s", dataDirDisplay)
 	var store *Store
 	store, err = openStore(filepath.Join(dataDir, "mengyakeyvault.db"))
 	if err != nil {
