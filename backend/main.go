@@ -182,11 +182,32 @@ func browseURL(address string) string {
 const databaseFileName string = "mengyakeyvault.db"
 const legacyFileName string = "data.json"
 
+// defaultDataDir 没设置 MENGYA_DATA_DIR 时的数据目录:二进制所在目录下的 data。
+// 不跟"运行时所在目录"走,这样双击、命令行、在别的目录里启动,用的都是同一个库,
+// 不会因为换了个目录启动就悄悄新建一个空库。
+// 例外:go run 的临时二进制放在系统临时目录里,退出就被删,数据不能放在它旁边,
+// 这种情况退回运行目录下的 data(start_backend.cmd 就是在 backend 目录里 go run)。
+func defaultDataDir(executablePath string, tempDir string) string {
+	if executablePath == "" {
+		return "data"
+	}
+	var executableDir string = filepath.Dir(executablePath)
+	var relative, err = filepath.Rel(tempDir, executableDir)
+	var insideTemp bool = err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+	if insideTemp {
+		return "data"
+	}
+	return filepath.Join(executableDir, "data")
+}
+
 // dataDirectory 返回数据目录和用于展示的绝对路径。
-// 默认是运行目录下的 data;相对路径是相对"运行时所在目录"的,换个目录启动就会悄悄新建一个空库,
-// 所以启动和重置密码时都要把实际用的位置打出来。
+// 启动和重置密码时都会把实际用的位置打出来,用错库一眼能看出来。
 func dataDirectory() (string, string) {
-	var dataDir string = cmp.Or(os.Getenv("MENGYA_DATA_DIR"), "data")
+	var executablePath, executableErr = os.Executable()
+	if executableErr != nil {
+		executablePath = ""
+	}
+	var dataDir string = cmp.Or(os.Getenv("MENGYA_DATA_DIR"), defaultDataDir(executablePath, os.TempDir()))
 	var display string = dataDir
 	var absolute, err = filepath.Abs(dataDir)
 	if err == nil {

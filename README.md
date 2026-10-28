@@ -8,15 +8,13 @@
 - 登录有效期默认 1 天,到期要重新登录
 - 登录有效期、两个访问密码都能在页面右上角「设置」里修改
 - 添加、编辑、删除密码记录,关键词搜索
-- 单文件运行,数据是一个 SQLite 文件(`data/mengyakeyvault.db`)
+- 单文件运行,数据是一个 SQLite 文件(`data/mengyakeyvault.db`,在二进制旁边)
 
 ## 快速开始
 
-Windows 下双击或运行 `start.cmd`:没构建过会先自动构建,然后启动服务,数据目录用 `backend\data`。启动后用浏览器打开 `http://localhost:8080`。
+Windows 下直接运行构建好的 `bin\mengyakeyvault.exe`(双击或命令行都行,在哪个目录启动都一样),然后用浏览器打开 `http://localhost:8080`。没构建过的话先运行 `build.cmd`(见下文「构建」)。
 
-> 不要直接运行 `bin\mengyakeyvault.exe`:不设 `MENGYA_DATA_DIR` 时,它的数据目录是**运行时所在目录**下的 `data`,从 `bin\` 里启动会悄悄新建一个空库,看起来就像数据丢了(实际原来的库没动)。启动日志第一行会打印实际使用的数据目录,用错了一眼就能看出来。
-
-也可以手动构建(见下文「构建」)后自己运行二进制,这时记得用 `MENGYA_DATA_DIR` 指定数据目录。
+数据放在**二进制所在目录**下的 `data` 文件夹里(`bin\data\mengyakeyvault.db`),不跟运行时所在目录走,所以不管从哪启动,用的都是同一个库。启动日志第一行会打印实际使用的数据目录。想放到别处,用环境变量 `MENGYA_DATA_DIR` 指定。
 
 **首次启动**会随机生成两个访问密码,**只在控制台(或 Docker 日志)里打印一次**,请立刻记下:
 
@@ -33,7 +31,7 @@ Windows 下双击或运行 `start.cmd`:没构建过会先自动构建,然后启�
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `MENGYA_ADDR` | `:8080` | 监听地址,例如 `127.0.0.1:9000` 只允许本机访问 |
-| `MENGYA_DATA_DIR` | `data` | 数据目录(相对运行时所在目录) |
+| `MENGYA_DATA_DIR` | 二进制所在目录下的 `data` | 数据目录。例外:用 `go run` 开发时,二进制是退出即删的临时文件,此时用运行目录下的 `data`(`start_backend.cmd` 就是这样用到 `backend\data`) |
 | `MENGYA_PASSWORD_1` / `MENGYA_PASSWORD_2` | 随机生成 | 首次启动时的两个访问密码,必须同时设置且不能相同,每个最长 72 字节。**只在库里还没有密码时生效**,之后在设置里改的密码不会被它覆盖 |
 | `MENGYA_TRUSTED_PROXIES` | 空 | 前面有 nginx 等反向代理时,填代理的 IP,多个用逗号分隔。见下方「放在反向代理后面」 |
 | `GIN_MODE` | `release` | 设成 `debug` 会输出调试日志 |
@@ -123,10 +121,10 @@ docker compose logs -f        # 首次启动在这里找随机生成的两个密
 访问密码在库里只存 bcrypt 哈希，没法反查，所以**不能显示旧密码，只能重置**。给二进制加 `-reset-passwords` 参数即可：它会生成两个新的随机密码写进库里并打印出来，然后直接退出，不启动服务，也不会改动任何已有记录。
 
 ```bash
-# Windows，数据目录用 backend\data
-start.cmd -reset-passwords
+# 直接运行二进制，在哪个目录都行，自动用二进制旁边的 data
+bin\mengyakeyvault.exe -reset-passwords
 
-# 直接运行二进制时，先用 MENGYA_DATA_DIR 指向正确的数据目录
+# 数据不在默认位置时，先用 MENGYA_DATA_DIR 指向它
 set MENGYA_DATA_DIR=backend\data
 bin\mengyakeyvault.exe -reset-passwords
 
@@ -189,7 +187,6 @@ mengyakeyvault/
 │   └── web/            前端构建产物输出到 web/dist(不入库)
 ├── frontend/           React 前端
 ├── build.cmd           一键构建:前端 + 后端 -> bin/
-├── start.cmd           一键启动(没构建过会先构建)
 ├── Dockerfile          多阶段构建,产出单个镜像
 └── docker-compose.yml
 ```
