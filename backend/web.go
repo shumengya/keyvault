@@ -10,7 +10,7 @@ import "strings"
 
 import "github.com/gin-gonic/gin"
 
-// 前端构建产物由 build.bat / Dockerfile 输出到 web/dist,再随 go build 嵌进二进制。
+// 前端构建产物由 build.cmd / Dockerfile 输出到 web/dist,再随 go build 嵌进二进制。
 // 这里嵌入整个 web 目录而不是 web/dist,并且用 all: 前缀(否则点开头的文件会被排除):
 // web/.gitkeep 是入库的占位文件,保证没构建过前端时 go build / go run 也能通过,
 // 否则 embed 匹配不到任何文件会直接编译失败。
@@ -107,7 +107,7 @@ func staticHandler(distFS fs.FS) gin.HandlerFunc {
 		if fileErr != nil || info.IsDir() {
 			// 根路径找不到 index.html,说明编译时没带上前端
 			if name == "index.html" {
-				ginContext.String(http.StatusServiceUnavailable, "前端尚未内嵌：请先构建前端再编译后端（运行 build.bat），详见 README。")
+				ginContext.String(http.StatusServiceUnavailable, "前端尚未内嵌：请先构建前端再编译后端（运行 build.cmd），详见 README。")
 				return
 			}
 			ginContext.String(http.StatusNotFound, "404 page not found")

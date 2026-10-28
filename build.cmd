@@ -3,8 +3,8 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-rem 用法: build.bat          编译 Windows 可执行文件 -> bin\mengyakeyvault.exe
-rem       build.bat linux    交叉编译 Linux amd64 -> bin\mengyakeyvault-linux-amd64
+rem 用法: build.cmd          编译 Windows 可执行文件 -> bin\mengyakeyvault.exe
+rem       build.cmd linux    交叉编译 Linux amd64 -> bin\mengyakeyvault-linux-amd64
 
 set "NAME=mengyakeyvault.exe"
 if /i "%~1"=="linux" (

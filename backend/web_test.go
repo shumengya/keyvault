@@ -107,7 +107,7 @@ func TestMissingFrontendShowsHint(tester *testing.T) {
 	env.router = router
 	var recorder *httptest.ResponseRecorder = env.call(http.MethodGet, "/", "", nil)
 	expectStatus(tester, "没有前端", recorder, http.StatusServiceUnavailable)
-	if !strings.Contains(recorder.Body.String(), "build.bat") {
+	if !strings.Contains(recorder.Body.String(), "build.cmd") {
 		tester.Errorf("应提示怎么构建前端, 实际 %q", recorder.Body.String())
 	}
 }

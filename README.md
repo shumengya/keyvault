@@ -61,10 +61,10 @@ proxy_set_header X-Forwarded-Proto $scheme;
 
 ```bash
 # 终端 1:后端,监听 8080
-start_backend.bat          # 等价于 cd backend && go run .
+start_backend.cmd          # 等价于 cd backend && go run .
 
 # 终端 2:前端开发服务器,监听 3000,/api 自动代理到 8080
-start_frontend.bat         # 等价于 cd frontend && npm start
+start_frontend.cmd         # 等价于 cd frontend && npm start
 ```
 
 开发时打开 `http://localhost:3000`。
@@ -79,8 +79,8 @@ go test ./...
 ## 构建
 
 ```bash
-build.bat           # Windows 可执行文件  -> bin\mengyakeyvault.exe
-build.bat linux     # Linux amd64         -> bin\mengyakeyvault-linux-amd64
+build.cmd           # Windows 可执行文件  -> bin\mengyakeyvault.exe
+build.cmd linux     # Linux amd64         -> bin\mengyakeyvault-linux-amd64
 ```
 
 脚本分两步:先 `npm run build` 把前端输出到 `backend/web/dist`,再 `go build`,Go 会通过 `go:embed` 把这个目录打进二进制。SQLite 用的是纯 Go 驱动(`modernc.org/sqlite`),不需要 CGO,所以可以在 Windows 上直接交叉编译 Linux 版本。
@@ -159,7 +159,7 @@ mengyakeyvault/
 │   ├── web.go          内嵌前端的静态文件服务
 │   └── web/            前端构建产物输出到 web/dist(不入库)
 ├── frontend/           React 前端
-├── build.bat           一键构建:前端 + 后端 -> bin/
+├── build.cmd           一键构建:前端 + 后端 -> bin/
 ├── Dockerfile          多阶段构建,产出单个镜像
 └── docker-compose.yml
 ```

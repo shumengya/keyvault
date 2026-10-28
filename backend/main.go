@@ -218,7 +218,7 @@ func run() error {
 	}
 	var address string = cmp.Or(os.Getenv("MENGYA_ADDR"), ":8080")
 	if !frontendBuilt() {
-		log.Printf("警告:这个二进制编译时没有带上前端页面,只有接口可用。请先运行 build.bat 再编译。")
+		log.Printf("警告:这个二进制编译时没有带上前端页面,只有接口可用。请先运行 build.cmd 再编译。")
 	}
 	log.Printf("服务器已启动,用浏览器打开 %s", browseURL(address))
 	var runErr error = router.Run(address)
