@@ -3,6 +3,7 @@ package main
 import "cmp"
 import "errors"
 import "fmt"
+import "io/fs"
 import "log"
 import "net/http"
 import "os"
@@ -22,6 +23,8 @@ type Server struct {
 	limiter        *attemptLimiter
 	clock          func() time.Time
 	trustedProxies []string
+	// webFS 前端静态文件;为 nil 时用编译进二进制的那份,测试里可以换成假的
+	webFS fs.FS
 }
 
 func newServer(store *Store, trustedProxies []string) *Server {
@@ -126,6 +129,7 @@ func (server *Server) newRouter() (*gin.Engine, error) {
 
 	// 前端和接口同源,不需要 CORS;Cookie 会话也不该对其他源开放
 	var api *gin.RouterGroup = router.Group("/api")
+	api.Use(noStore)
 	api.Use(limitBody)
 	api.POST("/login", server.login)
 	api.POST("/logout", server.logout)
@@ -140,6 +144,15 @@ func (server *Server) newRouter() (*gin.Engine, error) {
 	protected.GET("/settings", server.getSettings)
 	protected.PUT("/settings/session", server.updateSessionTTL)
 	protected.PUT("/settings/passwords", server.changePasswords)
+
+	var distFS fs.FS = server.webFS
+	if distFS == nil {
+		distFS, err = embeddedDist()
+		if err != nil {
+			return nil, err
+		}
+	}
+	router.NoRoute(staticHandler(distFS))
 	return router, nil
 }
 
@@ -157,10 +170,28 @@ func splitList(text string) []string {
 	return items
 }
 
+// browseURL 把监听地址转成能直接在浏览器打开的网址。
+func browseURL(address string) string {
+	if strings.HasPrefix(address, ":") {
+		return "http://localhost" + address
+	}
+	return "http://" + address
+}
+
 func run() error {
+	var err error = registerMimeTypes()
+	if err != nil {
+		return err
+	}
+	// 发布的二进制默认用 release 模式,不刷调试日志;要调试时设 GIN_MODE=debug
+	if os.Getenv(gin.EnvGinMode) == "" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	// 数据目录默认是运行目录下的 data;旧版 data.json 放在同一目录,首次启动会自动导入
 	var dataDir string = cmp.Or(os.Getenv("MENGYA_DATA_DIR"), "data")
-	var store, err = openStore(filepath.Join(dataDir, "mengyakeyvault.db"))
+	var store *Store
+	store, err = openStore(filepath.Join(dataDir, "mengyakeyvault.db"))
 	if err != nil {
 		return fmt.Errorf("打开存储: %w", err)
 	}
@@ -186,7 +217,10 @@ func run() error {
 		return errors.Join(err, store.Close())
 	}
 	var address string = cmp.Or(os.Getenv("MENGYA_ADDR"), ":8080")
-	log.Printf("服务器启动在 %s", address)
+	if !frontendBuilt() {
+		log.Printf("警告:这个二进制编译时没有带上前端页面,只有接口可用。请先运行 build.bat 再编译。")
+	}
+	log.Printf("服务器已启动,用浏览器打开 %s", browseURL(address))
 	var runErr error = router.Run(address)
 	var closeErr error = store.Close()
 	if runErr != nil {

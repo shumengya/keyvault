@@ -1,0 +1,18 @@
+services:
+  mengyakeyvault:
+    build: .
+    container_name: mengyakeyvault
+    restart: unless-stopped
+    ports:
+      - "6464:8080"
+    volumes:
+      # 沿用旧部署的数据目录:里面的 data.json 会在首次启动时自动导入 SQLite
+      - /shumengya/docker/mengyakeyvault-backend/data:/root/data
+    environment:
+      - TZ=Asia/Shanghai
+      # 首次启动时指定两个访问密码;不指定就随机生成,打印在日志里(docker compose logs)
+      # - MENGYA_PASSWORD_1=
+      # - MENGYA_PASSWORD_2=
+      # 前面有 nginx 等反向代理时必须填代理在容器里看到的 IP(通常是 docker 网关,如 172.17.0.1),
+      # 否则所有访客共用一个限流计数,有人乱试几次密码,主人也会被锁在外面 15 分钟
+      # - MENGYA_TRUSTED_PROXIES=172.17.0.1

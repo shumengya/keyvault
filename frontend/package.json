@@ -11,9 +11,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "npm run build:web && npm run build:desktop",
-    "build:web": "cross-env REACT_APP_API_BASE=/api BUILD_PATH=dist react-scripts build",
-    "build:desktop": "cross-env REACT_APP_API_BASE=https://keyvault.shumengya.top/api BUILD_PATH=dist-desktop react-scripts build",
+    "build": "cross-env BUILD_PATH=../backend/web/dist GENERATE_SOURCEMAP=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

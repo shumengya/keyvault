@@ -1,0 +1,10 @@
+.git
+**/node_modules
+frontend/build
+frontend/dist
+frontend/dist-desktop
+backend/web/dist
+backend/data
+bin
+*.exe
+*.db
