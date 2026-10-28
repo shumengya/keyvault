@@ -120,14 +120,40 @@ docker compose logs -f        # 首次启动在这里找随机生成的两个密
 
 ## 忘记访问密码
 
-没有“找回”功能,但本机能操作数据文件就能重置:
+访问密码在库里只存 bcrypt 哈希，没法反查，所以**不能显示旧密码，只能重置**。给二进制加 `-reset-passwords` 参数即可：它会生成两个新的随机密码写进库里并打印出来，然后直接退出，不启动服务，也不会改动任何已有记录。
 
-1. 停掉服务
-2. 用任意 SQLite 工具打开 `mengyakeyvault.db`,执行:
-   ```sql
-   DELETE FROM settings WHERE key IN ('passwordHashFirst', 'passwordHashSecond');
-   ```
-3. 重新启动。库里没有密码时会按首次启动处理:用 `MENGYA_PASSWORD_1/2` 或随机生成并打印。同时所有已登录的会话都会失效
+```bash
+# Windows，数据目录用 backend\data
+start.cmd -reset-passwords
+
+# 直接运行二进制时，先用 MENGYA_DATA_DIR 指向正确的数据目录
+set MENGYA_DATA_DIR=backend\data
+bin\mengyakeyvault.exe -reset-passwords
+
+# Docker
+docker compose exec mengyakeyvault mengyakeyvault -reset-passwords
+```
+
+输出里会带上数据目录和现有记录数，用来核对没有连错库：
+
+```
+数据目录: D:\...\backend\data
+现有记录: 48 条(不会被改动)
+已重置两个访问密码，所有已登录的设备需要重新登录。登录时两个都要输入，顺序不限。
+  密码 1: ...
+  密码 2: ...
+```
+
+- 服务正在运行时也可以执行，新密码立即生效，不用重启
+- 重置会让所有已登录的设备下线，要重新登录
+- 找不到数据库时会报错退出，不会新建空库
+- 想自己指定密码：重置后登录，在「设置」里改
+
+也可以手动删库里的两条密码哈希再重启（会按首次启动处理）：
+
+```sql
+DELETE FROM settings WHERE key IN ('passwordHashFirst', 'passwordHashSecond');
+```
 
 ## 接口
 
@@ -156,12 +182,14 @@ mengyakeyvault/
 │   ├── main.go         路由与条目接口
 │   ├── auth.go         登录、会话、限流、访问密码
 │   ├── settings.go     设置接口
+│   ├── reset.go        -reset-passwords 重置访问密码
 │   ├── store.go        SQLite 存储与旧数据导入
 │   ├── store_auth.go   会话与设置的存储
 │   ├── web.go          内嵌前端的静态文件服务
 │   └── web/            前端构建产物输出到 web/dist(不入库)
 ├── frontend/           React 前端
 ├── build.cmd           一键构建:前端 + 后端 -> bin/
+├── start.cmd           一键启动(没构建过会先构建)
 ├── Dockerfile          多阶段构建,产出单个镜像
 └── docker-compose.yml
 ```

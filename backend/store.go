@@ -194,6 +194,16 @@ func (store *Store) ListEntries(keyword string) ([]PasswordEntry, error) {
 	return scanEntries(rows)
 }
 
+// CountEntries 条目总数,只数行,不把密码读进内存。
+func (store *Store) CountEntries() (int, error) {
+	var count int = 0
+	var err error = store.database.QueryRow("SELECT COUNT(*) FROM entries").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("统计条目: %w", err)
+	}
+	return count, nil
+}
+
 // CreateEntry 新增条目并返回带有新 id 的记录,传入的 ID 会被忽略。
 func (store *Store) CreateEntry(entry PasswordEntry) (PasswordEntry, error) {
 	var result, err = store.database.Exec(

@@ -2,6 +2,7 @@ package main
 
 import "cmp"
 import "errors"
+import "flag"
 import "fmt"
 import "io/fs"
 import "log"
@@ -178,6 +179,22 @@ func browseURL(address string) string {
 	return "http://" + address
 }
 
+const databaseFileName string = "mengyakeyvault.db"
+const legacyFileName string = "data.json"
+
+// dataDirectory 返回数据目录和用于展示的绝对路径。
+// 默认是运行目录下的 data;相对路径是相对"运行时所在目录"的,换个目录启动就会悄悄新建一个空库,
+// 所以启动和重置密码时都要把实际用的位置打出来。
+func dataDirectory() (string, string) {
+	var dataDir string = cmp.Or(os.Getenv("MENGYA_DATA_DIR"), "data")
+	var display string = dataDir
+	var absolute, err = filepath.Abs(dataDir)
+	if err == nil {
+		display = absolute
+	}
+	return dataDir, display
+}
+
 func run() error {
 	var err error = registerMimeTypes()
 	if err != nil {
@@ -188,23 +205,17 @@ func run() error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// 数据目录默认是运行目录下的 data;旧版 data.json 放在同一目录,首次启动会自动导入
-	var dataDir string = cmp.Or(os.Getenv("MENGYA_DATA_DIR"), "data")
-	// 相对路径是相对"运行时所在目录"的,换个目录启动就会悄悄新建一个空库,所以把实际用的位置打出来
-	var dataDirDisplay string = dataDir
-	var absoluteDir, absErr = filepath.Abs(dataDir)
-	if absErr == nil {
-		dataDirDisplay = absoluteDir
-	}
+	// 旧版 data.json 放在数据目录里,首次启动会自动导入
+	var dataDir, dataDirDisplay = dataDirectory()
 	log.Printf("数据目录: %s", dataDirDisplay)
 	var store *Store
-	store, err = openStore(filepath.Join(dataDir, "mengyakeyvault.db"))
+	store, err = openStore(filepath.Join(dataDir, databaseFileName))
 	if err != nil {
 		return fmt.Errorf("打开存储: %w", err)
 	}
 
 	var imported int = 0
-	imported, err = store.ImportLegacyJSON(filepath.Join(dataDir, "data.json"))
+	imported, err = store.ImportLegacyJSON(filepath.Join(dataDir, legacyFileName))
 	if err != nil {
 		return errors.Join(fmt.Errorf("导入旧数据: %w", err), store.Close())
 	}
@@ -237,7 +248,20 @@ func run() error {
 }
 
 func main() {
-	var err error = run()
+	var resetRequested *bool = flag.Bool(
+		"reset-passwords",
+		false,
+		"重置两个访问密码:生成两个新的随机密码并打印,然后退出(不启动服务,不改动已有记录)",
+	)
+	flag.Parse()
+
+	var runner func() error = run
+	if *resetRequested {
+		runner = func() error {
+			return runReset(os.Stdout)
+		}
+	}
+	var err error = runner()
 	if err != nil {
 		log.Fatal(err)
 	}
