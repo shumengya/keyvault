@@ -13,8 +13,8 @@
 **/*.so
 **/*.dylib
 
-# Data files
-**/data/data.json
+# 数据目录:SQLite 库、旧版 data.json 及其备份都含真实密码,整个目录不入库
+**/data/
 
 # Logs
 *.log

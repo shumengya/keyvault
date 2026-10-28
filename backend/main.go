@@ -1,261 +1,166 @@
 package main
 
-import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"os"
-	"strings"
-	"sync"
+import "cmp"
+import "errors"
+import "fmt"
+import "log"
+import "net/http"
+import "os"
+import "path/filepath"
+import "strconv"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-)
+import "github.com/gin-contrib/cors"
+import "github.com/gin-gonic/gin"
 
-const (
-	DefaultPassword = "shumengya520"
-	DataFile        = "data/data.json"
-)
+const DefaultPassword string = "shumengya520"
 
-func init() {
-	// 确保数据目录存在
-	if err := os.MkdirAll("data", 0755); err != nil {
-		log.Printf("创建数据目录失败: %v", err)
-	}
-	loadData()
+// Server 持有各接口共用的存储层。
+type Server struct {
+	store *Store
 }
 
-type PasswordEntry struct {
-	ID           int    `json:"id"`
-	Account      string `json:"account"`      // 账号
-	Password     string `json:"password"`     // 密码
-	Username     string `json:"username"`     // 用户名
-	Phone        string `json:"phone"`        // 手机号
-	Email        string `json:"email"`        // 邮箱
-	Website      string `json:"website"`      // 网站地址
-	OfficialName string `json:"officialName"` // 官方名称（必填）
-	Tags         string `json:"tags"`         // 标签
-	Logo         string `json:"logo"`         // Logo图标URL
-}
-
-type PasswordStore struct {
-	Entries []PasswordEntry `json:"entries"`
-	mu      sync.RWMutex
-}
-
-var store = &PasswordStore{
-	Entries: make([]PasswordEntry, 0),
-}
-
-func loadData() {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if _, err := os.Stat(DataFile); os.IsNotExist(err) {
-		// 文件不存在，创建空数据
-		store.Entries = make([]PasswordEntry, 0)
-		return
-	}
-
-	data, err := ioutil.ReadFile(DataFile)
-	if err != nil {
-		log.Printf("读取数据文件失败: %v", err)
-		store.Entries = make([]PasswordEntry, 0)
-		return
-	}
-
-	if len(data) == 0 {
-		store.Entries = make([]PasswordEntry, 0)
-		return
-	}
-
-	err = json.Unmarshal(data, store)
-	if err != nil {
-		log.Printf("解析数据文件失败: %v", err)
-		store.Entries = make([]PasswordEntry, 0)
-	}
-}
-
-func saveData() error {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-
-	data, err := json.MarshalIndent(store, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(DataFile, data, 0644)
-}
-
-func verifyPassword(c *gin.Context) {
-	var req struct {
+func (server *Server) verifyPassword(ginContext *gin.Context) {
+	var request struct {
 		Password string `json:"password"`
 	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求"})
+	var err error = ginContext.ShouldBindJSON(&request)
+	if err != nil {
+		ginContext.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求"})
 		return
 	}
-
-	if req.Password == DefaultPassword {
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "密码验证成功"})
-	} else {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "密码错误"})
-	}
-}
-
-func getEntries(c *gin.Context) {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-
-	keyword := c.Query("keyword")
-	if keyword == "" {
-		c.JSON(http.StatusOK, gin.H{"entries": store.Entries})
+	if request.Password != DefaultPassword {
+		ginContext.JSON(http.StatusUnauthorized, gin.H{"error": "密码错误"})
 		return
 	}
-
-	// 关键词搜索
-	keyword = strings.ToLower(keyword)
-	var results []PasswordEntry
-	for _, entry := range store.Entries {
-		if strings.Contains(strings.ToLower(entry.Account), keyword) ||
-			strings.Contains(strings.ToLower(entry.Username), keyword) ||
-			strings.Contains(strings.ToLower(entry.Email), keyword) ||
-			strings.Contains(strings.ToLower(entry.Website), keyword) ||
-			strings.Contains(strings.ToLower(entry.OfficialName), keyword) ||
-			strings.Contains(strings.ToLower(entry.Tags), keyword) {
-			results = append(results, entry)
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{"entries": results})
+	ginContext.JSON(http.StatusOK, gin.H{"success": true, "message": "密码验证成功"})
 }
 
-func addEntry(c *gin.Context) {
+func (server *Server) getEntries(ginContext *gin.Context) {
+	var entries, err = server.store.ListEntries(ginContext.Query("keyword"))
+	if err != nil {
+		log.Printf("查询条目失败: %v", err)
+		ginContext.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
+		return
+	}
+	ginContext.JSON(http.StatusOK, gin.H{"entries": entries})
+}
+
+func (server *Server) addEntry(ginContext *gin.Context) {
 	var entry PasswordEntry
-	if err := c.ShouldBindJSON(&entry); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求数据"})
+	var err error = ginContext.ShouldBindJSON(&entry)
+	if err != nil {
+		ginContext.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求数据"})
 		return
 	}
-
-	// 验证必填字段
 	if entry.OfficialName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "官方名称不能为空"})
+		ginContext.JSON(http.StatusBadRequest, gin.H{"error": "官方名称不能为空"})
 		return
 	}
 
-	store.mu.Lock()
-	// 生成新ID
-	maxID := 0
-	for _, e := range store.Entries {
-		if e.ID > maxID {
-			maxID = e.ID
-		}
-	}
-	entry.ID = maxID + 1
-	store.Entries = append(store.Entries, entry)
-	store.mu.Unlock()
-
-	if err := saveData(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
+	var created PasswordEntry
+	created, err = server.store.CreateEntry(entry)
+	if err != nil {
+		log.Printf("新增条目失败: %v", err)
+		ginContext.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "entry": entry})
+	ginContext.JSON(http.StatusOK, gin.H{"success": true, "entry": created})
 }
 
-func updateEntry(c *gin.Context) {
+func (server *Server) updateEntry(ginContext *gin.Context) {
 	var entry PasswordEntry
-	if err := c.ShouldBindJSON(&entry); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求数据"})
+	var err error = ginContext.ShouldBindJSON(&entry)
+	if err != nil {
+		ginContext.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求数据"})
 		return
 	}
-
-	// 验证必填字段
 	if entry.OfficialName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "官方名称不能为空"})
+		ginContext.JSON(http.StatusBadRequest, gin.H{"error": "官方名称不能为空"})
 		return
 	}
 
-	store.mu.Lock()
-	found := false
-	for i, e := range store.Entries {
-		if e.ID == entry.ID {
-			store.Entries[i] = entry
-			found = true
-			break
-		}
-	}
-	store.mu.Unlock()
-
-	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "条目不存在"})
+	err = server.store.UpdateEntry(entry)
+	if errors.Is(err, ErrEntryNotFound) {
+		ginContext.JSON(http.StatusNotFound, gin.H{"error": "条目不存在"})
 		return
 	}
-
-	if err := saveData(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
+	if err != nil {
+		log.Printf("更新条目失败: %v", err)
+		ginContext.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "entry": entry})
+	ginContext.JSON(http.StatusOK, gin.H{"success": true, "entry": entry})
 }
 
-func deleteEntry(c *gin.Context) {
-	id := c.Param("id")
-	var entryID int
-	fmt.Sscanf(id, "%d", &entryID)
-
-	store.mu.Lock()
-	found := false
-	for i, e := range store.Entries {
-		if e.ID == entryID {
-			store.Entries = append(store.Entries[:i], store.Entries[i+1:]...)
-			found = true
-			break
-		}
-	}
-	store.mu.Unlock()
-
-	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "条目不存在"})
+func (server *Server) deleteEntry(ginContext *gin.Context) {
+	var id, err = strconv.Atoi(ginContext.Param("id"))
+	if err != nil {
+		ginContext.JSON(http.StatusBadRequest, gin.H{"error": "无效的条目 id"})
 		return
 	}
 
-	if err := saveData(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
+	err = server.store.DeleteEntry(id)
+	if errors.Is(err, ErrEntryNotFound) {
+		ginContext.JSON(http.StatusNotFound, gin.H{"error": "条目不存在"})
 		return
 	}
+	if err != nil {
+		log.Printf("删除条目失败: %v", err)
+		ginContext.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
+		return
+	}
+	ginContext.JSON(http.StatusOK, gin.H{"success": true})
+}
 
-	c.JSON(http.StatusOK, gin.H{"success": true})
+func (server *Server) newRouter() *gin.Engine {
+	var router *gin.Engine = gin.Default()
+
+	var corsConfig cors.Config = cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
+	router.Use(cors.New(corsConfig))
+
+	var api *gin.RouterGroup = router.Group("/api")
+	api.POST("/verify", server.verifyPassword)
+	api.GET("/entries", server.getEntries)
+	api.POST("/entries", server.addEntry)
+	api.PUT("/entries", server.updateEntry)
+	api.DELETE("/entries/:id", server.deleteEntry)
+	return router
+}
+
+func run() error {
+	// 数据目录默认是运行目录下的 data;旧版 data.json 放在同一目录,首次启动会自动导入
+	var dataDir string = cmp.Or(os.Getenv("MENGYA_DATA_DIR"), "data")
+	var store, err = openStore(filepath.Join(dataDir, "mengyakeyvault.db"))
+	if err != nil {
+		return fmt.Errorf("打开存储: %w", err)
+	}
+
+	var imported int = 0
+	imported, err = store.ImportLegacyJSON(filepath.Join(dataDir, "data.json"))
+	if err != nil {
+		return errors.Join(fmt.Errorf("导入旧数据: %w", err), store.Close())
+	}
+	if imported > 0 {
+		log.Printf("已从旧版 data.json 导入 %d 条记录(原文件保持不变)", imported)
+	}
+
+	var server *Server = &Server{store: store}
+	var address string = cmp.Or(os.Getenv("MENGYA_ADDR"), ":8080")
+	log.Printf("服务器启动在 %s", address)
+	var runErr error = server.newRouter().Run(address)
+	var closeErr error = store.Close()
+	if runErr != nil {
+		return errors.Join(fmt.Errorf("运行服务: %w", runErr), closeErr)
+	}
+	return closeErr
 }
 
 func main() {
-	r := gin.Default()
-
-	// 配置CORS
-	config := cors.DefaultConfig()
-	config.AllowAllOrigins = true
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
-	r.Use(cors.New(config))
-
-	// API路由
-	api := r.Group("/api")
-	{
-		api.POST("/verify", verifyPassword)
-		api.GET("/entries", getEntries)
-		api.POST("/entries", addEntry)
-		api.PUT("/entries", updateEntry)
-		api.DELETE("/entries/:id", deleteEntry)
-	}
-
-	port := ":8080"
-	log.Printf("服务器启动在端口 %s", port)
-	if err := r.Run(port); err != nil {
+	var err error = run()
+	if err != nil {
 		log.Fatal(err)
 	}
 }
