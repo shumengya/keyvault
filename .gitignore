@@ -1,6 +1,8 @@
 # Node/React
 **/node_modules/
 **/build/
+**/dist/
+**/dist-desktop/
 **/coverage/
 
 # Go

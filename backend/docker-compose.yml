@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  mengyakeyvault-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mengyakeyvault-backend
+    restart: unless-stopped
+    ports:
+      - "6464:8080"
+    volumes:
+      - /shumengya/docker/mengyakeyvault-backend/data:/root/data
+    working_dir: /root
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - mengyakeyvault-network
+
+networks:
+  mengyakeyvault-network:
+    driver: bridge
